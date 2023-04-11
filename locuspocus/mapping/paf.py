@@ -21,3 +21,82 @@
 # DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
+
+
+import os
+from typing import Iterable
+
+
+PAF_HEADER = [
+    "query_name",
+    "query_length",
+    "query_start",
+    "query_end",
+    "strand",
+    "target_name",
+    "target_length",
+    "target_start",
+    "target_end",
+    "num_matches",
+    "alignment_length",
+    "mapping_quality",
+]
+
+
+def read_paf(paf_file: str) -> Iterable:
+    """Reads the contents of a PAF-formatted file.
+
+    Parameters
+    ----------
+    paf_file : str
+        Path to a PAF-formatted file
+
+    Returns
+    -------
+    Iterable
+        List of ``PAFEntry`` objects, one for each line in the input
+        PAF-formatted file.
+
+    Raises
+    ------
+    FileNotFoundError
+        Raised if the provided PAF file does not exist.
+    """
+    if not os.path.isfile(paf_file):
+        err = f"The provided file path:\n  {paf_file}\ndoes not exist."
+        raise FileNotFoundError(err)
+    pafs = []
+    with open(paf_file, "r") as f:
+        for line in f:
+            if l := line.strip().split():
+                pafs.append(PAFEntry(l))
+    return pafs
+
+
+class PAFEntry:
+    """ """
+
+    header = PAF_HEADER
+
+    def __init__(self, line_data):
+        self.line_data = line_data
+        self.data = {h: v for h, v in zip(self.header, self.line_data)}
+        self._tags = None
+
+    def __getattr__(self, attr):
+        if attr in self.data:
+            return self.data[attr]
+        if attr in self.tags:
+            return self.tags[attr]
+        raise AttributeError(f"PAFEntry does not have the attribute: {attr}")
+
+    @property
+    def tags(self):
+        if self._tags is None:
+            tag_dict = {}
+            tags = self.line_data[len(self.header) :]
+            for t in tags:
+                t = t.split(":")
+                tag_dict[t[0]] = t[1:]
+            self._tags = tag_dict
+        return self._tags
