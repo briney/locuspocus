@@ -25,15 +25,16 @@
 
 import os
 import platform
-import sys
 import subprocess as sp
-from typing import Optional, Union
+import tempfile
+from typing import Optional
 
 
 def minimap(
     query: str,
     reference: str,
     output: str,
+    minimap_bin: Optional[str] = None,
     as_sam: bool = False,
     include_cigar: bool = True,
     preset: str = "map-ont",
@@ -86,22 +87,35 @@ def minimap(
     query = os.path.abspath(query)
     reference = os.path.abspath(reference)
     output = os.path.abspath(output)
+    if os.path.isdir(query):
+        concat_query = tempfile.NamedTemporaryFile(delete=False).name
+        concat_cmd = f"cd {query}"
+        concat_cmd += f' && for f in *; do cat "$f" >> {concat_query}; done'
+        p = sp.Popen(concat_cmd, stdout=sp.PIPE, stderr=sp.PIPE, shell=True)
+        stdout, stderr = p.communicate()
+        if debug:
+            print("QUERY CONCAT")
+            print(stdout.decode("utf-8"))
+            print(stderr.decode("utf-8"))
+        query = concat_query
     # locate minimap2 binary
-    mod_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    minimap_bin = os.path.join(
-        mod_dir, "bin/minimap2_{}".format(platform.system().lower())
-    )
-    minimap_cmd = f"{minimap_bin} -x {preset.lower()}"
+    if minimap_bin is None:
+        mod_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        minimap_bin = os.path.join(
+            mod_dir, "bin/minimap2_{}".format(platform.system().lower())
+        )
+    minimap_cmd = f"{minimap_bin} -x {preset.lower()} -o {output}"
     if include_cigar:
         minimap_cmd += " -c"
     if as_sam:
         minimap_cmd += " -a"
     if additional_options is not None:
         minimap_cmd += f" {additional_options}"
-    minimap_cmd += f" {reference} {query} > {output}"
+    minimap_cmd += f" {reference} {query}"
     p = sp.Popen(minimap_cmd, stdout=sp.PIPE, stderr=sp.PIPE, shell=True)
     stdout, stderr = p.communicate()
     if debug:
-        print(stdout)
-        print(stderr)
+        print("MINIMAP")
+        print(stdout.decode("utf-8"))
+        print(stderr.decode("utf-8"))
     return output
